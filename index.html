@@ -1,134 +1,152 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>UK Weather Station Pro</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Met-Pro Weather Station</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        :root { --primary: #003366; --accent: #ffcc00; --bg: #0f172a; }
-        body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: white; margin: 0; min-height: 100vh; display: flex; justify-content: center; align-items: center; }
-        
-        .glass-panel { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.1); border-radius: 24px; padding: 40px; width: 90%; max-width: 800px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); }
+        :root { --primary: #003366; --accent: #ffcc00; --panel: rgba(15, 23, 42, 0.8); }
+        body { 
+            margin: 0; padding: 20px; 
+            background: radial-gradient(circle at top right, #1e293b, #0f172a); 
+            font-family: 'Segoe UI', sans-serif; color: white;
+            display: flex; justify-content: center; align-items: center; min-height: 100vh;
+        }
+        .container { 
+            width: 100%; max-width: 900px; 
+            background: var(--panel); backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.1); border-radius: 30px; 
+            padding: 40px; box-shadow: 0 25px 50px rgba(0,0,0,0.5);
+        }
+        /* 搜索框 */
+        .search-wrap { position: relative; margin-bottom: 40px; }
+        .search-input { 
+            width: 100%; padding: 18px 25px; border-radius: 15px; border: none;
+            background: rgba(255,255,255,0.05); color: white; font-size: 1.1rem;
+            box-sizing: border-box; transition: 0.3s;
+        }
+        .search-input:focus { background: rgba(255,255,255,0.1); outline: 2px solid var(--accent); }
+        #suggestions { 
+            position: absolute; width: 100%; top: 65px; z-index: 100;
+            background: #1e293b; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        .sugg-item { padding: 15px 25px; cursor: pointer; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .sugg-item:hover { background: var(--primary); }
 
-        /* 搜索框美化 + 联想 */
-        .search-container { position: relative; margin-bottom: 30px; }
-        .search-bar { width: 100%; padding: 15px 20px; border-radius: 12px; border: none; background: #1e293b; color: white; font-size: 1.1rem; box-sizing: border-box; outline: 2px solid transparent; transition: 0.3s; }
-        .search-bar:focus { outline-color: var(--accent); }
-        #suggestions { position: absolute; width: 100%; background: #1e293b; border-radius: 0 0 12px 12px; z-index: 100; box-shadow: 0 10px 20px rgba(0,0,0,0.3); overflow: hidden; }
-        .suggestion-item { padding: 12px 20px; cursor: pointer; border-bottom: 1px solid #334155; }
-        .suggestion-item:hover { background: #334155; }
+        /* 主数据显示 */
+        .weather-main { display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px; }
+        .city-box h2 { font-size: 1.2rem; letter-spacing: 4px; color: #94a3b8; margin: 0; text-transform: uppercase; }
+        .city-box h1 { font-size: 7rem; margin: 10px 0; font-weight: 800; line-height: 1; }
+        .city-box p { font-size: 1.2rem; font-weight: 600; color: var(--accent); margin: 0; }
 
-        /* 天气主卡片 */
-        .weather-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-top: 20px; }
-        .main-info { border-right: 1px solid rgba(255,255,255,0.1); }
-        .city { font-size: 1.2rem; text-transform: uppercase; letter-spacing: 3px; color: #94a3b8; }
-        .temp { font-size: 6rem; font-weight: 800; margin: 10px 0; background: linear-gradient(to bottom, #fff, #94a3b8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .condition { font-weight: 600; color: var(--accent); letter-spacing: 1px; }
+        .details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; width: 350px; }
+        .detail-card { background: rgba(255,255,255,0.03); padding: 20px; border-radius: 15px; text-align: left; }
+        .detail-card label { display: block; font-size: 0.7rem; color: #64748b; margin-bottom: 5px; letter-spacing: 1px; }
+        .detail-card span { font-size: 1.2rem; font-weight: 600; }
 
-        /* 详情数据 */
-        .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; align-content: center; }
-        .stat-box { background: rgba(255,255,255,0.05); padding: 15px; border-radius: 12px; }
-        .stat-box label { display: block; font-size: 0.75rem; color: #64748b; margin-bottom: 5px; }
-        .stat-box span { font-size: 1.1rem; font-weight: 600; }
-
-        /* 图表区 */
-        #chartWrapper { margin-top: 40px; height: 250px; width: 100%; }
+        /* 图表 */
+        .chart-box { background: rgba(255,255,255,0.02); padding: 20px; border-radius: 20px; height: 300px; }
     </style>
 </head>
 <body>
 
-<div class="glass-panel">
-    <div class="search-container">
-        <input type="text" id="cityInput" class="search-bar" placeholder="Search City (e.g. Manchester)..." oninput="fetchSuggestions()">
+<div class="container">
+    <div class="search-wrap">
+        <input type="text" id="cityInput" class="search-input" placeholder="Enter City (e.g. Manchester)..." autocomplete="off">
         <div id="suggestions"></div>
     </div>
 
-    <div class="weather-grid">
-        <div class="main-info">
-            <div class="city" id="cityName">LONDON</div>
-            <div class="temp"><span id="tempText">--</span>°</div>
-            <div class="condition" id="descText">CLEAR SKY</div>
+    <div class="weather-main">
+        <div class="city-box">
+            <h2 id="cityName">LONDON</h2>
+            <h1><span id="temp">--</span>°</h1>
+            <p id="desc">FETCHING DATA...</p >
         </div>
-        <div class="stats">
-            <div class="stat-box"><label>FEELS LIKE</label><span id="feelsText">--</span>°C</div>
-            <div class="stat-box"><label>WIND</label><span id="windText">--</span> mph</div>
-            <div class="stat-box"><label>HUMIDITY</label><span id="humText">--</span>%</div>
-            <div class="stat-box"><label>PRESSURE</label><span id="pressText">--</span></div>
+        <div class="details-grid">
+            <div class="detail-card"><label>FEELS LIKE</label><span id="feels">--</span>°C</div>
+            <div class="detail-card"><label>WIND</label><span id="wind">--</span> mph</div>
+            <div class="detail-card"><label>HUMIDITY</label><span id="hum">--</span>%</div>
+            <div class="detail-card"><label>PRESSURE</label><span id="press">--</span></div>
         </div>
     </div>
 
-    <div id="chartWrapper">
+    <div class="chart-box">
         <canvas id="weatherChart"></canvas>
     </div>
 </div>
 
 <script>
     let myChart;
+    const input = document.getElementById('cityInput');
+    const suggs = document.getElementById('suggestions');
 
-    // 搜索联想功能
-    async function fetchSuggestions() {
-        const query = document.getElementById('cityInput').value;
-        const suggBox = document.getElementById('suggestions');
-        if (query.length < 3) { suggBox.innerHTML = ''; return; }
-
-        try {
-            const res = await fetch(`https://api.openweathermap.org/geo/1.0/direct?q=${query}&limit=5&appid=你的API_KEY`); 
-            const cities = await res.json();
-            suggBox.innerHTML = cities.map(c => `
-                <div class="suggestion-item" onclick="selectCity('${c.name},${c.country}')">
-                    📍 ${c.name}, ${c.state || ''} ${c.country}
-                </div>
-            `).join('');
-        } catch (e) { console.error(e); }
-    }
+    // 搜索联想逻辑
+    input.addEventListener('input', async () => {
+        const val = input.value;
+        if (val.length < 3) { suggs.innerHTML = ''; return; }
+        
+        // 注意：这里由于是前端，为了安全，建议联想功能也通过你的后端转发
+        // 但现在为了让你快点看到效果，直接调用接口
+        const res = await fetch(`/api/weather/${val}`); 
+        const d = await res.json();
+        if(!d.error) {
+            suggs.innerHTML = `<div class="sugg-item" onclick="selectCity('${d.city}')">📍 ${d.city} (Current Match)</div>`;
+        }
+    });
 
     function selectCity(name) {
-        document.getElementById('cityInput').value = name;
-        document.getElementById('suggestions').innerHTML = '';
-        updateWeather(name);
+        input.value = name;
+        suggs.innerHTML = '';
+        update(name);
     }
 
-    async function updateWeather(city = "London") {
+    async function update(city = "London") {
         const res = await fetch(`/api/weather/${city}`);
         const d = await res.json();
-        
-        document.getElementById('cityName').innerText = d.city;
-        document.getElementById('tempText').innerText = d.temp;
-        document.getElementById('descText').innerText = d.desc;
-        document.getElementById('feelsText').innerText = d.feels_like;
-        document.getElementById('windText').innerText = d.wind;
-        document.getElementById('humText').innerText = d.humidity;
-        document.getElementById('pressText').innerText = d.pressure;
+        if(d.error) return;
 
-        renderChart(parseFloat(d.temp));
+        document.getElementById('cityName').innerText = d.city;
+        document.getElementById('temp').innerText = d.temp;
+        document.getElementById('desc').innerText = d.desc;
+        document.getElementById('feels').innerText = d.feels_like;
+        document.getElementById('wind').innerText = d.wind;
+        document.getElementById('hum').innerText = d.humidity;
+        document.getElementById('press').innerText = d.pressure;
+
+        drawChart(parseFloat(d.temp));
     }
 
-    function renderChart(baseTemp) {
+    function drawChart(current) {
         const ctx = document.getElementById('weatherChart').getContext('2d');
         if (myChart) myChart.destroy();
-        
         myChart = new Chart(ctx, {
             type: 'line',
             data: {
-                labels: ['06:00', '09:00', '12:00', '15:00', '18:00', '21:00', 'Now'],
+                labels: ['06:00', '10:00', '14:00', '18:00', '22:00', 'Now'],
                 datasets: [{
-                    label: 'Temperature Forecast (°C)',
-                    data: [baseTemp-2, baseTemp-1, baseTemp+1, baseTemp+2, baseTemp+1, baseTemp-1, baseTemp],
+                    data: [current-2, current-1, current+2, current+1, current-1, current],
                     borderColor: '#ffcc00',
                     backgroundColor: 'rgba(255, 204, 0, 0.1)',
-                    fill: true,
-                    tension: 0.4
+                    fill: true, tension: 0.4, pointRadius: 0
                 }]
             },
-            options: { 
-                maintainAspectRatio: false,
+            options: {
+                responsive: true, maintainAspectRatio: false,
                 plugins: { legend: { display: false } },
-                scales: { y: { grid: { color: 'rgba(255,255,255,0.1)' } }, x: { grid: { display: false } } }
+                scales: { 
+                    y: { display: false }, 
+                    x: { grid: { display: false }, ticks: { color: '#64748b' } } 
+                }
             }
         });
     }
 
-    updateWeather();
+    update();
+</script>
+</body>
+</html>
+
 </script>
 </body>
 </html>
