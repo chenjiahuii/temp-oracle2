@@ -1,97 +1,45 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html>
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>伦敦精准实测温</title>
+    <title>London Weather</title>
     <style>
-        body {
-            background-color: #1a1a2e;
-            color: white;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-        }
-        .card {
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-            padding: 2rem;
-            border-radius: 30px;
-            width: 350px;
-            text-align: center;
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-        }
-        h1 { font-size: 1.2rem; opacity: 0.7; margin-bottom: 0.5rem; text-transform: uppercase; }
-        .temp-main { font-size: 5rem; font-weight: bold; margin: 1rem 0; }
-        .temp-unit { font-size: 2rem; vertical-align: super; }
-        .stats { display: flex; justify-content: space-around; margin-top: 2rem; font-size: 0.9rem; }
-        .stat-item { opacity: 0.8; }
-        .high-tag {
-            background: #f1c40f;
-            color: #000;
-            padding: 4px 12px;
-            border-radius: 15px;
-            font-size: 0.8rem;
-            font-weight: bold;
-        }
-        .time { font-size: 0.7rem; opacity: 0.5; margin-top: 1.5rem; }
+        body { background: #1a1a2e; color: white; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .card { background: rgba(255,255,255,0.1); padding: 2rem; border-radius: 20px; text-align: center; width: 300px; }
+        .temp { font-size: 4rem; font-weight: bold; }
+        .stat { margin-top: 10px; opacity: 0.8; }
     </style>
 </head>
 <body>
-
     <div class="card">
-        <h1>London</h1>
-        <div class="temp-main">
-            <span id="temp">--.-</span><span class="temp-unit">°</span>
-        </div>
-        <div>
-            <span class="high-tag">今日实测最高: <span id="temp_max">--.-</span>°C</span>
-        </div>
-        
-        <div class="stats">
-            <div class="stat-item">
-                <div>实测风速</div>
-                <div style="font-weight: bold; margin-top: 5px;"><span id="wind">--</span> mph</div>
-            </div>
-        </div>
-
-        <div class="time">数据观测时刻: <span id="obs_time">正在获取...</span></div>
+        <h2 id="city">Loading...</h2>
+        <div class="temp"><span id="temp">--</span>°</div>
+        <div class="stat">最高: <span id="temp_max">--</span>°C</div>
+        <div class="stat">风速: <span id="wind">--</span> mph</div>
+        <div style="font-size: 0.7rem; margin-top: 20px; opacity: 0.5;">更新时间: <span id="obs_time">--</span></div>
     </div>
 
     <script>
-        async function updateWeather() {
+        async function getVal() {
             try {
-                // 使用相对路径，这样无论 Railway 给什么端口都能自动对接
-                const response = await fetch('/api/weather/London');
-                const data = await response.json();
-                
-                if (data.error) {
-                    console.error('API 报错:', data.error);
-                    return;
-                }
-
-                // 更新 HTML 元素
-                document.getElementById('temp').innerText = data.temp;
-                document.getElementById('temp_max').innerText = data.temp_max;
-                document.getElementById('wind').innerText = data.wind;
-                document.getElementById('obs_time').innerText = data.obs_time;
-                
-            } catch (error) {
-                console.error('无法连接到后端:', error);
-                document.getElementById('obs_time').innerText = '连接失败，请检查端口设置';
+                // 注意：这里用相对路径，完美解决端口问题
+                const r = await fetch('/api/weather/London');
+                const d = await r.json();
+                document.getElementById('city').innerText = d.city;
+                document.getElementById('temp').innerText = d.temp;
+                document.getElementById('temp_max').innerText = d.temp_max;
+                document.getElementById('wind').innerText = d.wind;
+                document.getElementById('obs_time').innerText = d.obs_time;
+            } catch (e) {
+                document.getElementById('city').innerText = "获取失败";
             }
         }
-
-        // 立即执行一次
-        updateWeather();
-        // 每 5 分钟自动刷新一次数据
-        setInterval(updateWeather, 300000);
+        getVal();
+        setInterval(getVal, 60000); // 每一分钟刷新一次
     </script>
 </body>
 </html>
+
 
 
 
