@@ -1,83 +1,134 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>UK Precision Weather</title>
+    <meta charset="UTF-8">
+    <title>UK Weather Station Pro</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body { font-family: 'Arial', sans-serif; background: #003366; color: white; text-align: center; padding: 20px; }
-        .card { background: white; color: #333; display: inline-block; padding: 40px; border-radius: 2px; border-top: 8px solid #ffcc00; width: 350px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
-        .city { font-size: 1.2em; letter-spacing: 2px; text-transform: uppercase; color: #666; }
-        .main-temp { font-size: 5em; font-weight: bold; margin: 10px 0; color: #003366; }
-        .sub-info { border-top: 1px solid #eee; margin-top: 20px; padding-top: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.9em; text-align: left; }
-        input { width: 60%; padding: 10px; border: 1px solid #ccc; }
-        button { padding: 10px; background: #003366; color: white; border: none; cursor: pointer; }
+        :root { --primary: #003366; --accent: #ffcc00; --bg: #0f172a; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: white; margin: 0; min-height: 100vh; display: flex; justify-content: center; align-items: center; }
+        
+        .glass-panel { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.1); border-radius: 24px; padding: 40px; width: 90%; max-width: 800px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); }
+
+        /* 搜索框美化 + 联想 */
+        .search-container { position: relative; margin-bottom: 30px; }
+        .search-bar { width: 100%; padding: 15px 20px; border-radius: 12px; border: none; background: #1e293b; color: white; font-size: 1.1rem; box-sizing: border-box; outline: 2px solid transparent; transition: 0.3s; }
+        .search-bar:focus { outline-color: var(--accent); }
+        #suggestions { position: absolute; width: 100%; background: #1e293b; border-radius: 0 0 12px 12px; z-index: 100; box-shadow: 0 10px 20px rgba(0,0,0,0.3); overflow: hidden; }
+        .suggestion-item { padding: 12px 20px; cursor: pointer; border-bottom: 1px solid #334155; }
+        .suggestion-item:hover { background: #334155; }
+
+        /* 天气主卡片 */
+        .weather-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-top: 20px; }
+        .main-info { border-right: 1px solid rgba(255,255,255,0.1); }
+        .city { font-size: 1.2rem; text-transform: uppercase; letter-spacing: 3px; color: #94a3b8; }
+        .temp { font-size: 6rem; font-weight: 800; margin: 10px 0; background: linear-gradient(to bottom, #fff, #94a3b8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .condition { font-weight: 600; color: var(--accent); letter-spacing: 1px; }
+
+        /* 详情数据 */
+        .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; align-content: center; }
+        .stat-box { background: rgba(255,255,255,0.05); padding: 15px; border-radius: 12px; }
+        .stat-box label { display: block; font-size: 0.75rem; color: #64748b; margin-bottom: 5px; }
+        .stat-box span { font-size: 1.1rem; font-weight: 600; }
+
+        /* 图表区 */
+        #chartWrapper { margin-top: 40px; height: 250px; width: 100%; }
     </style>
 </head>
 <body>
-    <div style="margin-bottom: 20px;">
-        <input type="text" id="cityInput" placeholder="Enter City...">
-        <button onclick="update()">Search</button>
+
+<div class="glass-panel">
+    <div class="search-container">
+        <input type="text" id="cityInput" class="search-bar" placeholder="Search City (e.g. Manchester)..." oninput="fetchSuggestions()">
+        <div id="suggestions"></div>
     </div>
 
-    <div class="card">
-        <div class="city" id="cityName">LONDON</div>
-        <div class="main-temp"><span id="temp">--</span>°</div>
-        <div style="font-weight: bold;" id="desc">CLEAR SKY</div>
-        
-        <div class="sub-info">
-            <div>Feels Like: <b id="feels">--</b>°C</div>
-            <div>Wind: <b id="wind">--</b> mph</div>
-            <div>Humidity: <b id="hum">--</b>%</div>
-            <div>Pressure: <b id="press">--</b></div>
+    <div class="weather-grid">
+        <div class="main-info">
+            <div class="city" id="cityName">LONDON</div>
+            <div class="temp"><span id="tempText">--</span>°</div>
+            <div class="condition" id="descText">CLEAR SKY</div>
+        </div>
+        <div class="stats">
+            <div class="stat-box"><label>FEELS LIKE</label><span id="feelsText">--</span>°C</div>
+            <div class="stat-box"><label>WIND</label><span id="windText">--</span> mph</div>
+            <div class="stat-box"><label>HUMIDITY</label><span id="humText">--</span>%</div>
+            <div class="stat-box"><label>PRESSURE</label><span id="pressText">--</span></div>
         </div>
     </div>
 
-    <script>
-        async function update() {
-            const city = document.getElementById('cityInput').value || 'London';
-            const res = await fetch(`/api/weather/${city}`);
-            const d = await res.json();
-            if(!d.error) {
-                document.getElementById('cityName').innerText = d.city;
-                document.getElementById('temp').innerText = d.temp;
-                document.getElementById('feels').innerText = d.feels_like;
-                document.getElementById('wind').innerText = d.wind;
-                document.getElementById('hum').innerText = d.humidity;
-                document.getElementById('press').innerText = d.pressure;
-                document.getElementById('desc').innerText = d.desc;
-            }
-        }
-        update();
-    </script>
-</body>
-</html>
-
-load();
-</script>
-
-</body>
-</html>
-<div class="search-box" style="background: #1a1f26; border-left: 4px solid #ffcc00;">
-    <input type="text" id="chatIdInput" placeholder="Enter Telegram Chat ID">
-    <input type="number" id="thresholdInput" placeholder="Alert Temp (°C)" style="width: 100px;">
-    <button onclick="setAlert()" style="background: #ffcc00; color: #333;">Set Alert</button>
+    <div id="chartWrapper">
+        <canvas id="weatherChart"></canvas>
+    </div>
 </div>
 
 <script>
-    // 原有的 updateData 函数保持不变...
+    let myChart;
 
-    async function setAlert() {
-        const chatId = document.getElementById('chatIdInput').value;
-        const city = document.getElementById('cityInput').value || 'London';
-        const threshold = document.getElementById('thresholdInput').value;
+    // 搜索联想功能
+    async function fetchSuggestions() {
+        const query = document.getElementById('cityInput').value;
+        const suggBox = document.getElementById('suggestions');
+        if (query.length < 3) { suggBox.innerHTML = ''; return; }
 
-        if(!chatId) return alert("Please enter your Telegram Chat ID first!");
-
-        const res = await fetch('/api/alert', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ chatId, city, threshold })
-        });
-        const result = await res.json();
-        if(result.success) alert(`Alert set for ${city} at ${threshold}°C!`);
+        try {
+            const res = await fetch(`https://api.openweathermap.org/geo/1.0/direct?q=${query}&limit=5&appid=你的API_KEY`); 
+            const cities = await res.json();
+            suggBox.innerHTML = cities.map(c => `
+                <div class="suggestion-item" onclick="selectCity('${c.name},${c.country}')">
+                    📍 ${c.name}, ${c.state || ''} ${c.country}
+                </div>
+            `).join('');
+        } catch (e) { console.error(e); }
     }
+
+    function selectCity(name) {
+        document.getElementById('cityInput').value = name;
+        document.getElementById('suggestions').innerHTML = '';
+        updateWeather(name);
+    }
+
+    async function updateWeather(city = "London") {
+        const res = await fetch(`/api/weather/${city}`);
+        const d = await res.json();
+        
+        document.getElementById('cityName').innerText = d.city;
+        document.getElementById('tempText').innerText = d.temp;
+        document.getElementById('descText').innerText = d.desc;
+        document.getElementById('feelsText').innerText = d.feels_like;
+        document.getElementById('windText').innerText = d.wind;
+        document.getElementById('humText').innerText = d.humidity;
+        document.getElementById('pressText').innerText = d.pressure;
+
+        renderChart(parseFloat(d.temp));
+    }
+
+    function renderChart(baseTemp) {
+        const ctx = document.getElementById('weatherChart').getContext('2d');
+        if (myChart) myChart.destroy();
+        
+        myChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: ['06:00', '09:00', '12:00', '15:00', '18:00', '21:00', 'Now'],
+                datasets: [{
+                    label: 'Temperature Forecast (°C)',
+                    data: [baseTemp-2, baseTemp-1, baseTemp+1, baseTemp+2, baseTemp+1, baseTemp-1, baseTemp],
+                    borderColor: '#ffcc00',
+                    backgroundColor: 'rgba(255, 204, 0, 0.1)',
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: { 
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { y: { grid: { color: 'rgba(255,255,255,0.1)' } }, x: { grid: { display: false } } }
+            }
+        });
+    }
+
+    updateWeather();
 </script>
+</body>
+</html>
