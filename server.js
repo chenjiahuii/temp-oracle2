@@ -11,46 +11,63 @@ const app = express();
 app.use(express.static(__dirname));
 app.use(bodyParser.json());
 
-// 模拟 Met Office 的高精度抓取
+// 存储用户预警设置 (格式: { chatId: { city: 'London', threshold: 25 } })
+let userSettings = {};
+
 async function getMetStyleWeather(city = "London") {
-    // 增加 lang=en 确保描述准确
     const url = `https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${OPENWEATHER_KEY}&units=metric&lang=en`;
     try {
         const res = await fetch(url);
         const data = await res.json();
         if (data.cod !== 200) return { error: data.message };
-
         return {
             city: data.name,
-            // 核心：0.1°C 绝对精度
-            temp: data.main.temp.toFixed(1), 
+            temp: parseFloat(data.main.temp.toFixed(1)), 
+            temp_max: data.main.temp_max.toFixed(1),
+            temp_min: data.main.temp_min.toFixed(1),
             feels_like: data.main.feels_like.toFixed(1),
-            pressure: data.main.pressure, // 气压是 Met Office 预测下雨的关键
+            wind: (data.wind.speed * 2.237).toFixed(1),
             humidity: data.main.humidity,
-            wind: (data.wind.speed * 2.237).toFixed(1), // 英国习惯用 mph (英里/小时)
-            desc: data.weather[0].description.toUpperCase(),
-            icon: data.weather[0].icon
+            pressure: data.main.pressure,
+            desc: data.weather[0].description.toUpperCase()
         };
-    } catch (e) {
-        return { error: "Station Offline" };
-    }
+    } catch (e) { return { error: "Offline" }; }
 }
 
+// 接口：让网页前端保存预警设置
+app.post("/api/alert", (req, res) => {
+    const { chatId, city, threshold } = req.body;
+    if(!chatId || !city || !threshold) return res.status(400).json({msg: "Missing data"});
+    userSettings[chatId] = { city, threshold: parseFloat(threshold) };
+    console.log(`用户 ${chatId} 设置了 ${city} 预警线: ${threshold}°C`);
+    res.json({ success: true });
+});
+
+// 核心功能：每 30 分钟检查一次所有用户的预警
+setInterval(async () => {
+    console.log("正在执行后台温度巡检...");
+    for (const chatId in userSettings) {
+        const { city, threshold } = userSettings[chatId];
+        const w = await getMetStyleWeather(city);
+        if (!w.error && w.temp >= threshold) {
+            bot.sendMessage(chatId, `⚠️ 预警：${city} 当前温度已达 ${w.temp}°C，超过了你设定的 ${threshold}°C！`);
+        }
+    }
+}, 1800000); // 1800000 毫秒 = 30 分钟
+
+// 机器人回复设置提醒
+bot.onText(/\/alert (.*) (.*)/, (msg, match) => {
+    const city = match[1];
+    const threshold = match[2];
+    userSettings[msg.chat.id] = { city, threshold: parseFloat(threshold) };
+    bot.sendMessage(msg.chat.id, `✅ 设置成功！当 ${city} 温度超过 ${threshold}°C 时，我会立刻提醒你。`);
+});
+
 app.get("/api/weather/:city?", async (req, res) => {
-    const city = req.params.city || "London";
-    const weather = await getMetStyleWeather(city);
+    const weather = await getMetStyleWeather(req.params.city || "London");
     res.json(weather);
 });
 
-bot.onText(/\/start ?(.*)/, async (msg, match) => {
-    const city = match[1] || "London";
-    const w = await getMetStyleWeather(city);
-    if (w.error) {
-        bot.sendMessage(msg.chat.id, `⚠️ Error: City not found.`);
-    } else {
-        bot.sendMessage(msg.chat.id, `🇬🇧 Met-Style Report: ${w.city}\n\nTemp: ${w.temp}°C\nFeels: ${w.feels_like}°C\nWind: ${w.wind} mph\nHumidity: ${w.humidity}%\nPressure: ${w.pressure} hPa\n\nCondition: ${w.desc}`);
-    }
-});
+app.listen(PORT, () => console.log("Precision Met-Style Server with Alerts Active"));
 
-app.listen(PORT, () => console.log("Precision Met-Style Server Active"));
 
