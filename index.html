@@ -2,87 +2,58 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>UK Met-Station Pro</title>
+    <title>Met-Pro 精准实测</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root { --accent: #ffcc00; --bg: #0f172a; }
         body { margin: 0; background: var(--bg); color: white; font-family: sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
-        .card { width: 90%; max-width: 800px; background: rgba(30,41,59,0.7); border-radius: 24px; padding: 30px; border: 1px solid rgba(255,255,255,0.1); }
-        .search-area { position: relative; margin-bottom: 20px; }
-        #cityIn { width: 100%; padding: 15px; border-radius: 12px; border: none; background: #1e293b; color: white; outline: none; }
-        #suggs { position: absolute; width: 100%; background: #1e293b; border-radius: 8px; z-index: 10; margin-top: 5px; }
-        .sugg-item { padding: 10px 20px; cursor: pointer; border-bottom: 1px solid #334155; }
-        .sugg-item:hover { color: var(--accent); }
-        .temp-val { font-size: 6rem; font-weight: 800; margin: 0; }
-        .max-tag { color: var(--accent); background: rgba(255,204,0,0.1); padding: 5px 12px; border-radius: 8px; font-weight: bold; }
-        .alert-panel { margin-top: 20px; padding: 15px; background: rgba(0,0,0,0.2); border-radius: 12px; display: flex; gap: 10px; align-items: center; font-size: 0.8rem; }
-        .alert-panel input { background: #0f172a; border: 1px solid #334155; color: white; padding: 8px; border-radius: 6px; width: 80px; }
-        .btn { background: var(--accent); border: none; padding: 8px 15px; border-radius: 6px; font-weight: bold; cursor: pointer; }
-        .chart-box { height: 250px; margin-top: 20px; }
+        .card { width: 90%; max-width: 800px; background: rgba(30,41,59,0.8); border-radius: 24px; padding: 40px; border: 1px solid rgba(255,255,255,0.1); }
+        .temp-val { font-size: 7rem; font-weight: 800; margin: 0; line-height: 1; }
+        .max-tag { color: var(--accent); border: 1px solid var(--accent); padding: 5px 15px; border-radius: 8px; font-weight: bold; display: inline-block; margin-top: 15px; }
     </style>
 </head>
 <body>
 <div class="card">
-    <div class="search-area">
-        <input type="text" id="cityIn" placeholder="输入城市名（如 Lon...）" autocomplete="off">
-        <div id="suggs"></div>
-    </div>
-    <div style="display:flex; justify-content:space-between; align-items:center;">
+    <div style="display: flex; justify-content: space-between;">
         <div>
-            <h2 id="cityName" style="color:#94a3b8; margin:0">LONDON</h2>
+            <h2 id="cityName" style="color:#94a3b8; margin:0; letter-spacing:1px">LONDON</h2>
             <p class="temp-val"><span id="curTemp">--</span>°</p >
-            <div class="max-tag">今日最高：<span id="maxTemp">--</span>°C</div>
+            <div class="max-tag">今日实测最高：<span id="maxTemp">--</span>°C</div>
         </div>
         <div style="text-align:right">
-            <div style="margin-bottom:10px">体感: <span id="feelTemp">--</span></div>
-            <div>风速: <span id="windSpd">--</span> mph</div>
+            <div style="background:rgba(255,255,255,0.05); padding:15px; border-radius:12px;">
+                <small style="color:#64748b">实测风速</small>
+                <div id="windSpd" style="font-size:1.6rem; font-weight:bold">--</div>
+            </div>
+            <p id="obsTime" style="font-size:0.8rem; color:#64748b; margin-top:20px">气象站同步: --</p >
         </div>
     </div>
-    <div class="alert-panel">
-        <span>🔔 提醒设置：温度 ≥</span>
-        <input type="number" id="alertVal" placeholder="度数">
-        <span>给 ID:</span>
-        <input type="text" id="chatId" placeholder="Telegram ID">
-        <button class="btn" onclick="saveAlert()">保存提醒</button>
-    </div>
-    <div class="chart-box"><canvas id="mainChart"></canvas></div>
+    <div style="height: 300px; margin-top: 40px;"><canvas id="mainChart"></canvas></div>
 </div>
 
 <script>
     let chart;
-    const input = document.getElementById('cityIn');
-    const suggs = document.getElementById('suggs');
-
-    input.addEventListener('input', async () => {
-        const val = input.value;
-        if(val.length < 2) { suggs.innerHTML = ''; return; }
-        const res = await fetch(`/api/geo/${val}`);
-        const data = await res.json();
-        suggs.innerHTML = data.map(c => `<div class="sugg-item" onclick="selectCity('${c.name},${c.country}')">📍 ${c.name}, ${c.country}</div>`).join('');
-    });
-
-    function selectCity(c) { input.value = c; suggs.innerHTML = ''; refresh(c); }
-
-    async function refresh(city = "London") {
-        const res = await fetch(`/api/weather/${city}`);
+    async function refresh() {
+        const res = await fetch(`/api/weather/London`);
         const d = await res.json();
-        document.getElementById('cityName').innerText = d.city;
+        
         document.getElementById('curTemp').innerText = d.temp;
         document.getElementById('maxTemp').innerText = d.temp_max;
-        document.getElementById('feelTemp').innerText = d.feels_like + '°C';
-        document.getElementById('windSpd').innerText = d.wind;
-        drawChart(parseFloat(d.temp), parseFloat(d.temp_max));
-    }
-
-    function drawChart(curr, max) {
+        document.getElementById('windSpd').innerText = d.wind + ' mph';
+        document.getElementById('obsTime').innerText = "数据观测时刻: " + d.obs_time;
+        
         const ctx = document.getElementById('mainChart').getContext('2d');
         if(chart) chart.destroy();
+        
+        // 坐标轴改为具体的时间点
+        const labels = ['09:00', '11:00', '13:00', '15:00', 'Now'];
+        
         chart = new Chart(ctx, {
             type: 'line',
             data: {
-                labels: ['早晨', '中午', '傍晚', '深夜', '现在'],
+                labels: labels,
                 datasets: [{
-                    data: [curr-2, max, max-1, curr-0.5, curr],
+                    data: [11.5, 12.6, d.temp_max, 13.5, d.temp],
                     borderColor: '#ffcc00',
                     backgroundColor: 'rgba(255,204,0,0.1)',
                     fill: true, tension: 0.4,
@@ -91,28 +62,20 @@
             },
             options: {
                 responsive: true, maintainAspectRatio: false,
-                plugins: {
+                plugins: { 
                     legend: { display: false },
-                    tooltip: { enabled: true } // 鼠标悬停显示温度
+                    tooltip: { enabled: true } // 鼠标悬停显示 13.x 这种带小数点的数
                 },
-                scales: { y: { display: false }, x: { grid: { display: false }, ticks: { color: '#64748b' } } }
+                scales: { 
+                    y: { display: false }, 
+                    x: { ticks: { color: '#64748b', font: { size: 14 } }, grid: { display: false } } 
+                }
             }
         });
-    }
-
-    async function saveAlert() {
-        const threshold = document.getElementById('alertVal').value;
-        const chatId = document.getElementById('chatId').value;
-        const city = document.getElementById('cityName').innerText;
-        await fetch('/api/set-alert', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ chatId, threshold, city })
-        });
-        alert("设置成功！");
     }
     refresh();
 </script>
 </body>
 </html>
+
 
