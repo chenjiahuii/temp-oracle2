@@ -56,3 +56,28 @@ load();
 
 </body>
 </html>
+<div class="search-box" style="background: #1a1f26; border-left: 4px solid #ffcc00;">
+    <input type="text" id="chatIdInput" placeholder="Enter Telegram Chat ID">
+    <input type="number" id="thresholdInput" placeholder="Alert Temp (°C)" style="width: 100px;">
+    <button onclick="setAlert()" style="background: #ffcc00; color: #333;">Set Alert</button>
+</div>
+
+<script>
+    // 原有的 updateData 函数保持不变...
+
+    async function setAlert() {
+        const chatId = document.getElementById('chatIdInput').value;
+        const city = document.getElementById('cityInput').value || 'London';
+        const threshold = document.getElementById('thresholdInput').value;
+
+        if(!chatId) return alert("Please enter your Telegram Chat ID first!");
+
+        const res = await fetch('/api/alert', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ chatId, city, threshold })
+        });
+        const result = await res.json();
+        if(result.success) alert(`Alert set for ${city} at ${threshold}°C!`);
+    }
+</script>
