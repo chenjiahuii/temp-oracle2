@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<body style="background:black;color:white;text-align:center;font-family:sans-serif">
+
+<h1>UK Temp Oracle</h1>
+
+<h2 id="temp">--</h2>
+<p id="status"></p >
+<p id="remaining"></p >
+<p id="high"></p >
+<p id="trend"></p >
+<p id="impact"></p >
+
+<button onclick="subscribe()">Subscribe (£5/month)</button>
+
+<script>
+async function load() {
+  const res = await fetch("/data");
+  const data = await res.json();
+
+  document.getElementById("temp").innerText = data.temp + "°C";
+  document.getElementById("status").innerText = data.reached ? "✅ REACHED" : "❌ NOT REACHED";
+  document.getElementById("remaining").innerText = "Remaining: " + data.remaining + "°C";
+  document.getElementById("high").innerText = "Today High: " + data.high + "°C";
+  document.getElementById("trend").innerText = "Trend: " + data.trend;
+  document.getElementById("impact").innerText = data.impact;
+}
+
+async function subscribe() {
+  const res = await fetch("/create-checkout-session", { method: "POST" });
+  const data = await res.json();
+  window.location = data.url;
+}
+
+setInterval(load, 3000);
+load();
+</script>
+
+</body>
+</html>

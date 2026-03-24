@@ -1,0 +1,8 @@
+module.exports = {
+  MET_CLIENT_ID: process.env.MET_CLIENT_ID,
+  MET_CLIENT_SECRET: process.env.MET_CLIENT_SECRET,
+  TELEGRAM_TOKEN: process.env.TELEGRAM_TOKEN,
+  STRIPE_SECRET: process.env.STRIPE_SECRET,
+  STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
+  TARGET_TEMP: process.env.TARGET_TEMP || 16
+};
