@@ -1,18 +1,18 @@
 const express = require("express");
 const fetch = require("node-fetch");
 const TelegramBot = require("node-telegram-bot-api");
+const path = require("path");
 
 const app = express();
 app.use(express.static(__dirname));
 
-// 这里的端口逻辑最重要：必须同时兼容 Railway 的动态分配和 8080 备用
-const PORT = process.env.PORT || 8080; 
+// 1. 彻底解决端口问题：Railway 分配哪个就用哪个
+const PORT = process.env.PORT || 3000; 
 const OPENWEATHER_KEY = '8309191d9e794348a735c05562723707';
-// 确认这是你最新的 Token (NSgbo 结尾)
 const token = '8792803480:AAHTii_MZya-yDARduHVoR3JUt5aHXNSgbo';
 
 const bot = new TelegramBot(token, { polling: true });
-bot.on('polling_error', (error) => console.log('Bot is connecting...'));
+bot.on('polling_error', (error) => console.log('Bot Reconnecting...'));
 
 app.get("/api/weather/:city", async (req, res) => {
     try {
@@ -20,7 +20,6 @@ app.get("/api/weather/:city", async (req, res) => {
         const url = `https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${OPENWEATHER_KEY}&units=metric`;
         const resp = await fetch(url);
         const d = await resp.json();
-        
         if (d.cod !== 200) return res.json({ error: "City not found" });
         
         res.json({
@@ -38,5 +37,3 @@ app.get("/api/weather/:city", async (req, res) => {
 app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server is running on port ${PORT}`);
 });
-
-
