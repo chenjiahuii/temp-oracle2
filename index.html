@@ -2,14 +2,14 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Met-Pro Precision</title>
+    <title>Met-Pro Weather Station</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root { --accent: #ffcc00; --bg: #0f172a; }
         body { margin: 0; background: var(--bg); color: white; font-family: 'Segoe UI', sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
         .card { width: 90%; max-width: 850px; background: rgba(30,41,59,0.7); backdrop-filter: blur(20px); border-radius: 24px; padding: 35px; border: 1px solid rgba(255,255,255,0.1); }
         
-        /* 模糊搜索联想 */
+        /* 模糊搜索联想框 */
         .search-area { position: relative; margin-bottom: 30px; }
         #cityIn { width: 100%; padding: 15px; border-radius: 12px; border: none; background: rgba(255,255,255,0.05); color: white; font-size: 1rem; outline: none; box-sizing: border-box; }
         #suggs { position: absolute; width: 100%; top: 60px; background: #1e293b; border-radius: 10px; z-index: 100; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
@@ -32,7 +32,7 @@
 
 <div class="card">
     <div class="search-area">
-        <input type="text" id="cityIn" placeholder="输入城市名（如 Lon...）" autocomplete="off">
+        <input type="text" id="cityIn" placeholder="输入城市名，自动联想 (如 Lon...)" autocomplete="off">
         <div id="suggs"></div>
     </div>
 
@@ -44,7 +44,7 @@
         </div>
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px">
             <div style="background:rgba(255,255,255,0.03); padding:15px; border-radius:12px">
-                <label style="font-size:0.7rem; color:#64748b">体感温度</label><div id="feelTemp">--</div>
+                <label style="font-size:0.7rem; color:#64748b">体感</label><div id="feelTemp">--</div>
             </div>
             <div style="background:rgba(255,255,255,0.03); padding:15px; border-radius:12px">
                 <label style="font-size:0.7rem; color:#64748b">风速 mph</label><div id="windSpd">--</div>
@@ -53,11 +53,11 @@
     </div>
 
     <div class="alert-panel">
-        <span style="font-size:0.9rem">🌡 设置提醒：当温度达到</span>
+        <span style="font-size:0.9rem">🌡 设置提醒：温度 ≥</span>
         <input type="number" id="alertVal" placeholder="度数">
-        <span>时，发送给 ID:</span>
-        <input type="text" id="chatId" placeholder="Telegram ID">
-        <button class="btn" onclick="saveAlert()">保存设置</button>
+        <span>发送至 ID:</span>
+        <input type="text" id="chatId" placeholder="你的 Telegram ID">
+        <button class="btn" onclick="saveAlert()">保存提醒</button>
     </div>
 
     <div class="chart-wrap">
@@ -70,7 +70,7 @@
     const input = document.getElementById('cityIn');
     const suggs = document.getElementById('suggs');
 
-    // 1. 模糊搜索逻辑
+    // 模糊搜索联想逻辑
     input.addEventListener('input', async () => {
         const val = input.value;
         if(val.length < 2) { suggs.innerHTML = ''; return; }
@@ -99,28 +99,28 @@
         drawChart(parseFloat(d.temp), parseFloat(d.temp_max));
     }
 
-    // 2. 绘图：支持鼠标悬停浮窗
+    // 绘图逻辑：开启 Tooltip 鼠标悬停浮窗
     function drawChart(curr, max) {
         const ctx = document.getElementById('mainChart').getContext('2d');
         if(chart) chart.destroy();
         chart = new Chart(ctx, {
             type: 'line',
             data: {
-                labels: ['06:00', '11:00', '15:00', '20:00', 'Now'],
+                labels: ['早晨', '中午', '傍晚', '深夜', '现在'],
                 datasets: [{
                     label: '温度 (°C)',
-                    data: [curr-1.2, max, max-0.8, curr-0.5, curr],
+                    data: [curr-1.5, max, max-0.8, curr-0.5, curr],
                     borderColor: '#ffcc00',
                     backgroundColor: 'rgba(255,204,0,0.1)',
                     fill: true, tension: 0.4,
-                    pointRadius: 6, pointHoverRadius: 10, pointHoverBackgroundColor: '#fff'
+                    pointRadius: 6, pointHoverRadius: 10
                 }]
             },
             options: {
                 responsive: true, maintainAspectRatio: false,
                 plugins: {
                     legend: { display: false },
-                    tooltip: { // 鼠标悬停显示温度
+                    tooltip: { // 鼠标悬停显示详细温度
                         enabled: true,
                         backgroundColor: '#1e293b',
                         padding: 12,
@@ -135,23 +135,25 @@
         });
     }
 
-    // 3. 提交提醒设置
+    // 设置提醒设置
     async function saveAlert() {
         const threshold = document.getElementById('alertVal').value;
         const chatId = document.getElementById('chatId').value;
         const city = document.getElementById('cityName').innerText;
-        
         if(!threshold || !chatId) return alert("请填写完整！");
-
         await fetch('/api/set-alert', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ chatId, threshold, city })
         });
-        alert(`设置成功！当 ${city} 温度达到 ${threshold}°C 时，机器人会发私信给你。`);
+        alert(`设置成功！当 ${city} 温度达到 ${threshold}°C 时，机器人会发消息。`);
     }
 
     refresh();
+</script>
+</body>
+</html>
+
 </script>
 </body>
 </html>
