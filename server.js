@@ -10,8 +10,7 @@ app.use(bodyParser.json());
 const PORT = process.env.PORT || 3000;
 // 这里直接帮你写死 Key，省得变量又出问题
 const OPENWEATHER_KEY = '8309191d9e794348a735c05562723707';
-const token = '8792803480:AAGNyi024DuM_7-KDupScPxNPAeQyOnf44s';
-
+const token = '8792803480:AAHTii_MZya-yDARduHVoR3JUt5aHXNSgbo';
 const bot = new TelegramBot(token, { polling: true });
 
 app.get("/api/weather/:city", async (req, res) => {
