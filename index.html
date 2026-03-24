@@ -1,38 +1,56 @@
 <!DOCTYPE html>
 <html>
-<body style="background:black;color:white;text-align:center;font-family:sans-serif">
+<head>
+    <title>UK Precision Weather</title>
+    <style>
+        body { font-family: 'Arial', sans-serif; background: #003366; color: white; text-align: center; padding: 20px; }
+        .card { background: white; color: #333; display: inline-block; padding: 40px; border-radius: 2px; border-top: 8px solid #ffcc00; width: 350px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
+        .city { font-size: 1.2em; letter-spacing: 2px; text-transform: uppercase; color: #666; }
+        .main-temp { font-size: 5em; font-weight: bold; margin: 10px 0; color: #003366; }
+        .sub-info { border-top: 1px solid #eee; margin-top: 20px; padding-top: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.9em; text-align: left; }
+        input { width: 60%; padding: 10px; border: 1px solid #ccc; }
+        button { padding: 10px; background: #003366; color: white; border: none; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div style="margin-bottom: 20px;">
+        <input type="text" id="cityInput" placeholder="Enter City...">
+        <button onclick="update()">Search</button>
+    </div>
 
-<h1>UK Temp Oracle</h1>
+    <div class="card">
+        <div class="city" id="cityName">LONDON</div>
+        <div class="main-temp"><span id="temp">--</span>°</div>
+        <div style="font-weight: bold;" id="desc">CLEAR SKY</div>
+        
+        <div class="sub-info">
+            <div>Feels Like: <b id="feels">--</b>°C</div>
+            <div>Wind: <b id="wind">--</b> mph</div>
+            <div>Humidity: <b id="hum">--</b>%</div>
+            <div>Pressure: <b id="press">--</b></div>
+        </div>
+    </div>
 
-<h2 id="temp">--</h2>
-<p id="status"></p >
-<p id="remaining"></p >
-<p id="high"></p >
-<p id="trend"></p >
-<p id="impact"></p >
+    <script>
+        async function update() {
+            const city = document.getElementById('cityInput').value || 'London';
+            const res = await fetch(`/api/weather/${city}`);
+            const d = await res.json();
+            if(!d.error) {
+                document.getElementById('cityName').innerText = d.city;
+                document.getElementById('temp').innerText = d.temp;
+                document.getElementById('feels').innerText = d.feels_like;
+                document.getElementById('wind').innerText = d.wind;
+                document.getElementById('hum').innerText = d.humidity;
+                document.getElementById('press').innerText = d.pressure;
+                document.getElementById('desc').innerText = d.desc;
+            }
+        }
+        update();
+    </script>
+</body>
+</html>
 
-<button onclick="subscribe()">Subscribe (£5/month)</button>
-
-<script>
-async function load() {
-  const res = await fetch("/data");
-  const data = await res.json();
-
-  document.getElementById("temp").innerText = data.temp + "°C";
-  document.getElementById("status").innerText = data.reached ? "✅ REACHED" : "❌ NOT REACHED";
-  document.getElementById("remaining").innerText = "Remaining: " + data.remaining + "°C";
-  document.getElementById("high").innerText = "Today High: " + data.high + "°C";
-  document.getElementById("trend").innerText = "Trend: " + data.trend;
-  document.getElementById("impact").innerText = data.impact;
-}
-
-async function subscribe() {
-  const res = await fetch("/create-checkout-session", { method: "POST" });
-  const data = await res.json();
-  window.location = data.url;
-}
-
-setInterval(load, 3000);
 load();
 </script>
 
