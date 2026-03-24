@@ -2,27 +2,24 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>London Weather</title>
+    <title>Weather</title>
     <style>
         body { background: #1a1a2e; color: white; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
         .card { background: rgba(255,255,255,0.1); padding: 2rem; border-radius: 20px; text-align: center; width: 300px; }
-        .temp { font-size: 4rem; font-weight: bold; }
-        .stat { margin-top: 10px; opacity: 0.8; }
     </style>
 </head>
 <body>
     <div class="card">
-        <h2 id="city">Loading...</h2>
-        <div class="temp"><span id="temp">--</span>°</div>
-        <div class="stat">最高: <span id="temp_max">--</span>°C</div>
-        <div class="stat">风速: <span id="wind">--</span> mph</div>
-        <div style="font-size: 0.7rem; margin-top: 20px; opacity: 0.5;">更新时间: <span id="obs_time">--</span></div>
+        <h2 id="city">Wait...</h2>
+        <div style="font-size: 4rem;"><span id="temp">--</span>°</div>
+        <div>最高: <span id="temp_max">--</span>°C</div>
+        <div>风速: <span id="wind">--</span> mph</div>
+        <div style="font-size: 0.7rem; margin-top: 20px; opacity: 0.5;">Update: <span id="obs_time">--</span></div>
     </div>
-
     <script>
         async function getVal() {
             try {
-                // 注意：这里用相对路径，完美解决端口问题
+                // 必须是这个路径，不带 localhost
                 const r = await fetch('/api/weather/London');
                 const d = await r.json();
                 document.getElementById('city').innerText = d.city;
@@ -30,16 +27,10 @@
                 document.getElementById('temp_max').innerText = d.temp_max;
                 document.getElementById('wind').innerText = d.wind;
                 document.getElementById('obs_time').innerText = d.obs_time;
-            } catch (e) {
-                document.getElementById('city').innerText = "获取失败";
-            }
+            } catch (e) { document.getElementById('city').innerText = "Error"; }
         }
         getVal();
-        setInterval(getVal, 60000); // 每一分钟刷新一次
+        setInterval(getVal, 60000);
     </script>
 </body>
 </html>
-
-
-
-
