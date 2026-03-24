@@ -1,218 +1,82 @@
 const express = require("express");
 const fetch = require("node-fetch");
 const TelegramBot = require("node-telegram-bot-api");
-const Stripe = require("stripe");
 const bodyParser = require("body-parser");
 
-const config = require("./config");
+// 基础配置
+const PORT = process.env.PORT || 3000;
+const TOKEN = process.env.TELEGRAM_TOKEN;
+const OPENWEATHER_KEY = process.env.OPENWEATHER_KEY;
 
 const app = express();
-const bot = new TelegramBot(config.TELEGRAM_TOKEN, { polling: true });
-const stripe = Stripe(config.STRIPE_SECRET);
+const bot = new TelegramBot(TOKEN, { polling: true });
 
 app.use(express.static(__dirname));
+app.use(bodyParser.json());
 
-// Stripe webhook 必须 raw
-app.use("/webhook", bodyParser.raw({ type: "application/json" }));
-app.use(express.json());
-
-let subscribers = [];
-let paidUsers = [];
-
-let todayHigh = -100;
-let lastTemp = null;
-
-let alertedNear = false;
-let alertedVeryNear = false;
-let alertedReached = false;
-
-// =======================
-// Telegram 订阅（绑定邮箱）
-// =======================
-bot.onText(/\/start (.+)/, (msg, match) => {
-  const chatId = msg.chat.id;
-  const email = match[1];
-
-  if (paidUsers.includes(email)) {
-    if (!subscribers.includes(chatId)) {
-      subscribers.push(chatId);
-    }
-    bot.sendMessage(chatId, "✅ Premium Activated!");
-  } else {
-    bot.sendMessage(chatId, "❌ Please subscribe first");
-  }
-});
-
-// =======================
-// Met Office 数据
-// =======================
+// 获取天气的核心函数 (已改用 OpenWeather)
 async function getTemp() {
-  const res = await fetch(
-    "https://api-metoffice.apiconnect.ibmcloud.com/metoffice/production/v0/observations/point?latitude=51.47&longitude=-0.45",
-    {
-      headers: {
-        "x-ibm-client-id": config.MET_CLIENT_ID,
-        "x-ibm-client-secret": config.MET_CLIENT_SECRET
-      }
+    // 默认城市设为伦敦，你可以改成其他城市
+    const city = "London";
+    const url = `https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${OPENWEATHER_KEY}&units=metric`;
+
+    try {
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        if (data.cod !== 200) throw new Error(data.message);
+
+        return {
+            temp: data.main.temp,
+            wind: data.wind.speed,
+            cloud: data.clouds.all
+        };
+    } catch (e) {
+        console.error("天气抓取失败:", e.message);
+        // 返回保底数据，防止页面崩溃
+        return { temp: "--", wind: "--", cloud: "--" };
     }
-  );
-
-  const data = await res.json();
-  const obs = data.features[0].properties;
-
-  return {
-    temp: obs.screenTemperature,
-    wind: obs.windSpeed,
-    cloud: obs.cloudCover
-  };
 }
 
-// =======================
-// 辅助函数
-// =======================
-function getTrend(temp) {
-  if (lastTemp === null) return "—";
-  if (temp > lastTemp) return "↑";
-  if (temp < lastTemp) return "↓";
-  return "→";
-}
-
-function getImpact(wind, cloud) {
-  let impact = [];
-  if (wind > 15) impact.push("💨 Wind cooling");
-  if (cloud > 70) impact.push("☁️ Cloud may reduce temp");
-  return impact.join(" | ") || "Stable";
-}
-
-// =======================
-// 主逻辑（温度检测）
-// =======================
-async function checkTemp() {
-  try {
-    const { temp, wind, cloud } = await getTemp();
-
-    if (temp > todayHigh) todayHigh = temp;
-
-    let remaining = (config.TARGET_TEMP - temp).toFixed(2);
-    let trend = getTrend(temp);
-    let impact = getImpact(wind, cloud);
-
-    // 提醒逻辑
-    if (temp >= config.TARGET_TEMP - 0.3 && !alertedNear) {
-      subscribers.forEach(id => {
-        bot.sendMessage(id, `⚠️ ${temp}°C\nOnly ${remaining}°C away`);
-      });
-      alertedNear = true;
-    }
-
-    if (temp >= config.TARGET_TEMP - 0.1 && !alertedVeryNear) {
-      subscribers.forEach(id => {
-        bot.sendMessage(id, `🔥 ${temp}°C\nVERY CLOSE`);
-      });
-      alertedVeryNear = true;
-    }
-
-    if (temp >= config.TARGET_TEMP && !alertedReached) {
-      subscribers.forEach(id => {
-        bot.sendMessage(id, `🚨 ${temp}°C\nTARGET REACHED`);
-      });
-      alertedReached = true;
-    }
-
-    if (temp < config.TARGET_TEMP - 0.5) {
-      alertedNear = false;
-      alertedVeryNear = false;
-      alertedReached = false;
-    }
-
-    lastTemp = temp;
-
-    global.latestData = {
-      temp,
-      remaining,
-      trend,
-      high: todayHigh.toFixed(2),
-      impact,
-      reached: temp >= config.TARGET_TEMP
-    };
-
-  } catch (err) {
-    console.log("Error:", err.message);
-  }
-}
-
-// =======================
-// API 给前端
-// =======================
-app.get("/data", (req, res) => {
-  res.json(global.latestData || {});
+// 网页路由
+app.get("/api/weather", async (req, res) => {
+    const weather = await getTemp();
+    res.json(weather);
 });
 
-// =======================
-// Stripe 创建支付
-// =======================
-app.post("/create-checkout-session", async (req, res) => {
-
-  const session = await stripe.checkout.sessions.create({
-    payment_method_types: ["card"],
-    mode: "subscription",
-
-    line_items: [{
-      price_data: {
-        currency: "gbp",
-        product_data: { name: "Temp Oracle Pro" },
-        unit_amount: 500,
-        recurring: { interval: "month" }
-      },
-      quantity: 1
-    }],
-
-    success_url: "https://你的域名/success",
-    cancel_url: "https://你的域名/cancel"
-  });
-
-  res.json({ url: session.url });
+// 根目录渲染一个简单的 HTML (确保你有一个 index.html 或者直接返回文字)
+app.get("/", (req, res) => {
+    res.send(`
+        <html>
+            <body style="font-family:sans-serif; text-align:center; padding-top:50px;">
+                <h1>Weather Oracle</h1>
+                <div id="data">Loading...</div>
+                <script>
+                    fetch('/api/weather')
+                        .then(r => r.json())
+                        .then(d => {
+                            document.getElementById('data').innerHTML = 
+                                '<h2>Current Temp: ' + d.temp + '°C</h2>' +
+                                '<p>Wind: ' + d.wind + ' m/s</p >' +
+                                '<p>Clouds: ' + d.cloud + '%</p >';
+                        });
+                </script>
+            </body>
+        </html>
+    `);
 });
 
-// =======================
-// Stripe Webhook（自动开通）
-// =======================
-app.post("/webhook", (req, res) => {
-  const sig = req.headers["stripe-signature"];
-
-  let event;
-
-  try {
-    event = stripe.webhooks.constructEvent(
-      req.body,
-      sig,
-      config.STRIPE_WEBHOOK_SECRET
-    );
-  } catch (err) {
-    return res.status(400).send("Webhook Error");
-  }
-
-  if (event.type === "checkout.session.completed") {
-    const session = event.data.object;
-
-    const email = session.customer_email;
-
-    if (!paidUsers.includes(email)) {
-      paidUsers.push(email);
-    }
-
-    console.log("Paid user:", email);
-  }
-
-  res.json({ received: true });
+// Telegram 机器人逻辑
+bot.onText(/\/start/, async (msg) => {
+    const chatId = msg.chat.id;
+    const weather = await getTemp();
+    bot.sendMessage(chatId, `你好！当前温度是: ${weather.temp}°C\n风速: ${weather.wind} m/s\n云量: ${weather.cloud}%`);
 });
 
-// =======================
-// 启动
-// =======================
-app.listen(3000, () => {
-  console.log("Server running on port 3000");
+app.listen(PORT, () => {
+    console.log(`服务器已启动，端口: ${PORT}`);
 });
+;
 
 setInterval(checkTemp, 30000);
 checkTemp();
