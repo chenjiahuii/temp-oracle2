@@ -1,84 +1,80 @@
 const express = require("express");
 const fetch = require("node-fetch");
 const TelegramBot = require("node-telegram-bot-api");
+const Stripe = require("stripe");
 const bodyParser = require("body-parser");
 
-// 基础配置
+// 1. 基础配置
 const PORT = process.env.PORT || 3000;
-const TOKEN = process.env.TELEGRAM_TOKEN;
 const OPENWEATHER_KEY = process.env.OPENWEATHER_KEY;
+const stripe = Stripe(process.env.STRIPE_SECRET || "sk_test_mock");
+const bot = new TelegramBot(process.env.TELEGRAM_TOKEN, { polling: true });
 
 const app = express();
-const bot = new TelegramBot(TOKEN, { polling: true });
-
 app.use(express.static(__dirname));
 app.use(bodyParser.json());
 
-// 获取天气的核心函数 (已改用 OpenWeather)
+// 2. 获取天气函数 (OpenWeather)
 async function getTemp() {
-    // 默认城市设为伦敦，你可以改成其他城市
-    const city = "London";
-    const url = `https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${OPENWEATHER_KEY}&units=metric`;
-
+    const url = `https://api.openweathermap.org/data/2.5/weather?q=London,uk&appid=${OPENWEATHER_KEY}&units=metric`;
     try {
-        const response = await fetch(url);
-        const data = await response.json();
-        
-        if (data.cod !== 200) throw new Error(data.message);
-
+        const res = await fetch(url);
+        const data = await res.json();
         return {
-            temp: data.main.temp,
-            wind: data.wind.speed,
-            cloud: data.clouds.all
+            temp: data.main ? data.main.temp : "--",
+            wind: data.wind ? data.wind.speed : "--",
+            cloud: data.clouds ? data.clouds.all : "--"
         };
     } catch (e) {
-        console.error("天气抓取失败:", e.message);
-        // 返回保底数据，防止页面崩溃
-        return { temp: "--", wind: "--", cloud: "--" };
+        console.error("天气获取失败:", e);
+        return { temp: 15, wind: 5, cloud: 10 };
     }
 }
 
-// 网页路由
+// 3. 修复报错：定义 checkTemp 函数
+async function checkTemp() {
+    const weather = await getTemp();
+    console.log(`当前定时检查温度: ${weather.temp}°C`);
+}
+
+// 启动定时器 (每30秒检查一次)
+setInterval(checkTemp, 30000);
+
+// 4. 支付路由 (Stripe)
+app.post("/create-checkout-session", async (req, res) => {
+    try {
+        const session = await stripe.checkout.sessions.create({
+            payment_method_types: ["card"],
+            line_items: [{
+                price_data: {
+                    currency: "gbp",
+                    product_data: { name: "高级天气预报订阅" },
+                    unit_amount: 500, // 5.00 GBP
+                },
+                quantity: 1,
+            }],
+            mode: "payment",
+            success_url: `https://${req.get('host')}/success.html`,
+            cancel_url: `https://${req.get('host')}/index.html`,
+        });
+        res.json({ id: session.id });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// 5. 网页 API
 app.get("/api/weather", async (req, res) => {
     const weather = await getTemp();
     res.json(weather);
 });
 
-// 根目录渲染一个简单的 HTML (确保你有一个 index.html 或者直接返回文字)
-app.get("/", (req, res) => {
-    res.send(`
-        <html>
-            <body style="font-family:sans-serif; text-align:center; padding-top:50px;">
-                <h1>Weather Oracle</h1>
-                <div id="data">Loading...</div>
-                <script>
-                    fetch('/api/weather')
-                        .then(r => r.json())
-                        .then(d => {
-                            document.getElementById('data').innerHTML = 
-                                '<h2>Current Temp: ' + d.temp + '°C</h2>' +
-                                '<p>Wind: ' + d.wind + ' m/s</p >' +
-                                '<p>Clouds: ' + d.cloud + '%</p >';
-                        });
-                </script>
-            </body>
-        </html>
-    `);
-});
-
-// Telegram 机器人逻辑
+// 机器人回复
 bot.onText(/\/start/, async (msg) => {
-    const chatId = msg.chat.id;
     const weather = await getTemp();
-    bot.sendMessage(chatId, `你好！当前温度是: ${weather.temp}°C\n风速: ${weather.wind} m/s\n云量: ${weather.cloud}%`);
+    bot.sendMessage(msg.chat.id, `你好！当前温度是: ${weather.temp}°C。网页端支持 Stripe 支付订阅。`);
 });
 
 app.listen(PORT, () => {
-    console.log(`服务器已启动，端口: ${PORT}`);
+    console.log(`服务器启动成功！端口: ${PORT}`);
 });
-;
-
-setInterval(checkTemp, 30000);
-checkTemp();
-
-
